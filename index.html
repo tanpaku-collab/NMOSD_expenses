@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NMOSD自己負担額シミュレーター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; }
+        .sticky-panel { position: sticky; top: 0; z-index: 50; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const App = () => {
+            // --- State Management ---
+            const [params, setParams] = useState(() => {
+                const saved = localStorage.getItem('nmosd_sim_params');
+                return saved ? JSON.parse(saved) : {
+                    severity: 'heavy', // 'heavy' or 'light'
+                    nanbyoIncome: '370', // ~370
+                    kogakuIncome: '770', // ~770
+                    enspCycle: '3', // 1, 2, 3 months
+                    fukaKyufu: false,
+                    jichitai: false,
+                    displayType: 'year', // 'year' or 'month'
+                    periodTab: 'after' // 'first' or 'after' (Default)
+                };
+            });
+
+            useEffect(() => {
+                localStorage.setItem('nmosd_sim_params', JSON.stringify(params));
+            }, [params]);
+
+            // --- Calculation Logic ---
+            const calculateCost = () => {
+                const isHeavy = params.severity === 'heavy';
+                const isFirstYear = params.periodTab === 'first';
+
+                // 1. 各所得区分の難病上限(月額)
+                const nanbyoLimits = { '80': 2500, '160': 5000, '370': 10000, '810': 2000, 'over': 30000 };
+                const nanbyoLongLimits = { '80': 2500, '160': 5000, '370': 5000, '810': 10000, 'over': 20000 };
+                
+                // 2. 高額療養費上限(月額)
+                const getKogakuLimit = (yakka) => {
+                    if (params.jichitai) return 0;
+                    let limit = 0;
+                    switch(params.kogakuIncome) {
+                        case 'hikazei': limit = 35400; break;
+                        case '370': limit = 57600; break;
+                        case '770': limit = 80100 + (yakka - 267000) * 0.01; break;
+                        case '1160': limit = 167400 + (yakka - 558000) * 0.01; break;
+                        case 'over': limit = 252600 + (yakka - 842000) * 0.01; break;
+                    }
+                    return params.fukaKyufu ? Math.min(limit, 25000) : limit;
+                };
+
+                const applyFukaOrJichitai = (monthlyCost) => {
+                    if (params.jichitai) return 0;
+                    if (params.fukaKyufu) return Math.min(monthlyCost, 25000);
+                    return monthlyCost;
+                };
+
+                // --- エンスプリング (取得順1) ---
+                const enspYakkaPerDose = 1150216;
+                const enspDosesPerYear = 12; // 原則4週に1回
+                const enspPayCount = 12 / parseInt(params.enspCycle); // 12, 6, 4回
+                let enspAnnual = 0;
+
+                if (isHeavy) {
+                    // 重症：高額かつ長期適用 (月1万/5千など * 支払い回数)
+                    enspAnnual = applyFukaOrJichitai(nanbyoLongLimits[params.nanbyoIncome]) * enspPayCount;
+                } else {
+                    // 軽症
+                    if (isFirstYear) {
+                        // 1年目：最初の3回分は高額療養費
+                        const kogaku = getKogakuLimit(enspYakkaPerDose * parseInt(params.enspCycle));
+                        const nanbyo = applyFukaOrJichitai(nanbyoLimits[params.nanbyoIncome]);
+                        // 最初の3回分を高額療養費(または付加給付)で支払い、残りの回数を難病助成で払う
+                        const first3MonthPayCount = Math.min(3, enspPayCount);
+                        enspAnnual = (kogaku * first3MonthPayCount) + (nanbyo * (enspPayCount - first3MonthPayCount));
+                    } else {
+                        // 2年目以降：軽症高額特例(重症と同じ所得区分だが上限は「一般」)
+                        enspAnnual = applyFukaOrJichitai(nanbyoLimits[params.nanbyoIncome]) * enspPayCount;
+                    }
+                }
+
+                // --- ユプリズナ (取得順2) ---
+                const uplYakkaPerDose = 10485912;
+                let uplAnnual = 0;
+                if (isHeavy) {
+                    // 重症：年2回(一般区分)
+                    uplAnnual = applyFukaOrJichitai(nanbyoLimits[params.nanbyoIncome]) * 2;
+                } else {
+                    // 軽症：常に高額療養費
+                    uplAnnual = getKogakuLimit(uplYakkaPerDose) * 2;
+                }
+
+                // --- ユルトミリス (取得順3) ---
+                const ultYakkaPerDose = 7259835;
+                let ultAnnual = 0;
+                if (isHeavy) {
+                    // 重症：年6回(高額長期)
+                    ultAnnual = applyFukaOrJichitai(nanbyoLongLimits[params.nanbyoIncome]) * 6;
+                } else {
+                    // 軽症
+                    if (isFirstYear) {
+                        // 最初の3回分は高額療養費
+                        ultAnnual = (getKogakuLimit(ultYakkaPerDose) * 3) + (applyFukaOrJichitai(nanbyoLimits[params.nanbyoIncome]) * 3);
+                    } else {
+                        // 軽症高額特例
+                        ultAnnual = applyFukaOrJichitai(nanbyoLimits[params.nanbyoIncome]) * 6;
+                    }
+                }
+
+                return [
+                    { name: 'エンスプリング', cost: enspAnnual, color: 'bg-amber-500', note: isHeavy ? '高額かつ長期' : (isFirstYear ? '待機期間含む' : '軽症高額特例') },
+                    { name: 'ユプリズナ', cost: uplAnnual, color: 'bg-blue-500', note: isHeavy ? '難病助成(一般)' : '高額療養費' },
+                    { name: 'ユルトミリス', cost: ultAnnual, color: 'bg-emerald-500', note: isHeavy ? '高額かつ長期' : (isFirstYear ? '待機期間含む' : '軽症高額特例') }
+                ];
+            };
+
+            const results = useMemo(calculateCost, [params]);
+            const maxCost = Math.max(...results.map(r => r.cost), 100000);
+
+            return (
+                <div className="min-h-screen pb-12">
+                    {/* Header */}
+                    <header className="bg-white border-b px-4 py-6 shadow-sm">
+                        <h1 className="text-xl font-bold text-slate-800 text-center flex items-center justify-center gap-2">
+                            <i data-lucide="calculator" className="w-6 h-6 text-orange-400"></i>
+                            NMOSD自己負担額シミュレーター
+                        </h1>
+                    </header>
+
+                    {/* Sticky Results Panel */}
+                    <div className="sticky-panel bg-orange-50/95 backdrop-blur-md border-b shadow-md p-4">
+                        <div className="max-w-2xl mx-auto">
+                            {/* Period Tabs */}
+                            <div className="flex bg-white rounded-lg p-1 mb-4 shadow-inner">
+                                <button 
+                                    onClick={() => setParams({...params, periodTab: 'first'})}
+                                    className={`flex-1 py-2 text-sm font-bold rounded-md transition ${params.periodTab === 'first' ? 'bg-orange-200 text-orange-900 shadow-sm' : 'text-slate-500'}`}
+                                >
+                                    1年目 (導入期)
+                                </button>
+                                <button 
+                                    onClick={() => setParams({...params, periodTab: 'after'})}
+                                    className={`flex-1 py-2 text-sm font-bold rounded-md transition ${params.periodTab === 'after' ? 'bg-orange-200 text-orange-900 shadow-sm' : 'text-slate-500'}`}
+                                >
+                                    2年目以降 (維持期)
+                                </button>
+                            </div>
+
+                            {/* Display Mode Toggle */}
+                            <div className="flex justify-end mb-4">
+                                <label className="inline-flex items-center cursor-pointer">
+                                    <span className="mr-3 text-xs font-bold text-slate-600">{params.displayType === 'year' ? '年間合計' : '月額換算'}</span>
+                                    <div onClick={() => setParams({...params, displayType: params.displayType === 'year' ? 'month' : 'year'})} className="relative w-11 h-6 bg-slate-300 rounded-full transition duration-200">
+                                        <div className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition shadow-md transform ${params.displayType === 'month' ? 'translate-x-5' : ''}`}></div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            {/* Bars */}
+                            <div className="space-y-4">
+                                {results.map((r) => {
+                                    const displayCost = params.displayType === 'year' ? r.cost : Math.round(r.cost / 12);
+                                    return (
+                                        <div key={r.name} className="relative">
+                                            <div className="flex justify-between items-end mb-1">
+                                                <span className="text-sm font-bold text-slate-700">{r.name} <span className="text-[10px] font-normal text-slate-500 bg-white px-1 rounded border ml-1">{r.note}</span></span>
+                                                <span className="text-sm font-bold text-orange-700">{displayCost.toLocaleString()}円</span>
+                                            </div>
+                                            <div className="w-full bg-white/50 rounded-full h-4 overflow-hidden border border-slate-200">
+                                                <div 
+                                                    className={`h-full ${r.color} transition-all duration-500 ease-out`}
+                                                    style={{ width: `${(r.cost / maxCost) * 100}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Inputs Area */}
+                    <main className="max-w-2xl mx-auto p-4 mt-4 space-y-6">
+                        <section className="bg-white rounded-xl shadow-sm p-5 border border-slate-200">
+                            <h2 className="text-sm font-bold mb-4 flex items-center gap-2 text-slate-700">
+                                <i data-lucide="user" className="w-4 h-4"></i> 患者基本条件
+                            </h2>
+                            <div className="grid grid-cols-1 gap-6">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-2">難病受給者証 重症度分類</label>
+                                    <div className="flex bg-slate-100 rounded-lg p-1">
+                                        <button onClick={() => setParams({...params, severity: 'heavy'})} className={`flex-1 py-2 text-sm rounded-md transition ${params.severity === 'heavy' ? 'bg-white shadow text-slate-900 font-bold' : 'text-slate-500'}`}>重症認定あり</button>
+                                        <button onClick={() => setParams({...params, severity: 'light'})} className={`flex-1 py-2 text-sm rounded-md transition ${params.severity === 'light' ? 'bg-white shadow text-slate-900 font-bold' : 'text-slate-500'}`}>重症認定なし(軽症)</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-2">所得区分 (指定難病用)</label>
+                                    <select 
+                                        value={params.nanbyoIncome}
+                                        onChange={(e) => setParams({...params, nanbyoIncome: e.target.value})}
+                                        className="w-full bg-slate-50 border border-slate-300 rounded-lg py-3 px-4 text-sm focus:ring-2 focus:ring-orange-300 outline-none"
+                                    >
+                                        <option value="80">低所得Ⅰ (非課税・本人年収80万以下)</option>
+                                        <option value="160">低所得Ⅱ (非課税・本人年収80万超)</option>
+                                        <option value="370">一般所得Ⅰ (年収~約370万)</option>
+                                        <option value="810">一般所得Ⅱ (年収~約810万)</option>
+                                        <option value="over">上位所得 (年収約810万~)</option>
+                                    </select>
+                                </div>
+
+                                {params.severity === 'light' && (
+                                    <div className="animate-fade-in">
+                                        <label className="block text-xs font-bold text-slate-500 mb-2">所得区分 (高額療養費用/ユプリズナ用)</label>
+                                        <select 
+                                            value={params.kogakuIncome}
+                                            onChange={(e) => setParams({...params, kogakuIncome: e.target.value})}
+                                            className="w-full bg-slate-50 border border-orange-200 rounded-lg py-3 px-4 text-sm outline-none"
+                                        >
+                                            <option value="hikazei">住民税非課税</option>
+                                            <option value="370">~年収 約370万</option>
+                                            <option value="770">~年収 約770万</option>
+                                            <option value="1160">~年収 約1160万</option>
+                                            <option value="over">年収 約1160万~</option>
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
+                        <section className="bg-white rounded-xl shadow-sm p-5 border border-slate-200 text-slate-900">
+                            <h2 className="text-sm font-bold mb-4 flex items-center gap-2 text-slate-700">
+                                <i data-lucide="pill" className="w-4 h-4"></i> 製剤固有条件
+                            </h2>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2">エンスプリング 処方サイクル (院外処方)</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[1, 2, 3].map(m => (
+                                        <button 
+                                            key={m}
+                                            onClick={() => setParams({...params, enspCycle: m.toString()})}
+                                            className={`py-2 text-xs rounded-lg border transition ${params.enspCycle === m.toString() ? 'bg-orange-500 text-white border-orange-600 font-bold' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                                        >
+                                            {m}ヶ月分
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-2">※処方月数により、難病上限額の支払い回数が変わります。</p>
+                            </div>
+                        </section>
+
+                        <section className="bg-white rounded-xl shadow-sm p-5 border border-slate-200">
+                            <h2 className="text-sm font-bold mb-4 flex items-center gap-2 text-slate-700">
+                                <i data-lucide="shield-check" className="w-4 h-4"></i> 追加助成・制度
+                            </h2>
+                            <div className="space-y-4">
+                                <label className="flex items-center justify-between p-3 bg-slate-50 rounded-lg cursor-pointer">
+                                    <span className="text-sm font-medium">付加給付あり (上限2.5万円/月)</span>
+                                    <input type="checkbox" checked={params.fukaKyufu} onChange={(e) => setParams({...params, fukaKyufu: e.target.checked})} className="w-5 h-5 accent-orange-500"/>
+                                </label>
+                                <label className="flex items-center justify-between p-3 bg-slate-50 rounded-lg cursor-pointer">
+                                    <span className="text-sm font-medium">自治体助成あり (障がい者手帳等/負担0)</span>
+                                    <input type="checkbox" checked={params.jichitai} onChange={(e) => setParams({...params, jichitai: e.target.checked})} className="w-5 h-5 accent-orange-500"/>
+                                </label>
+                            </div>
+                        </section>
+
+                        <button 
+                            onClick={() => { if(confirm('設定をリセットしますか？')){ localStorage.removeItem('nmosd_sim_params'); location.reload(); }}}
+                            className="w-full py-4 text-xs font-bold text-slate-400 border border-dashed border-slate-300 rounded-xl hover:bg-slate-100 transition"
+                        >
+                            全設定をリセット
+                        </button>
+                    </main>
+                    
+                    <footer className="text-center px-4">
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                            ※本シミュレーターは公表されている薬価および制度に基づく概算であり、実際の支払額を保証するものではありません。<br/>
+                            院外処方時の調剤料等は含まれていません。詳細は各医療機関・自治体窓口へご確認ください。
+                        </p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+        
+        // Initialize Lucide icons
+        setTimeout(() => lucide.createIcons(), 500);
+    </script>
+</body>
+</html>
