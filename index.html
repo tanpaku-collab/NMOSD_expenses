@@ -3,30 +3,420 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NMOSD自己負担額シミュレーター</title>
+    <title>NMOSD 医療費自己負担シミュレーター</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
-        body { font-family: 'Noto Sans JP', sans-serif; }
-        .sticky-panel { position: sticky; top: 0; z-index: 50; }
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        :root {
+            --col-primary: #0f4c81;
+            --col-primary-light: #e8f1fa;
+            --col-accent: #e07b39;
+            --col-accent-light: #fef3ec;
+            --col-surface: #ffffff;
+            --col-bg: #f4f7fb;
+            --col-muted: #8294a8;
+            --col-border: #dce6f0;
+            --col-text: #1a2b3c;
+            --col-ensp: #d97706;
+            --col-upl: #2563eb;
+            --col-ult: #059669;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
+            background: var(--col-bg);
+            color: var(--col-text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ===== HEADER ===== */
+        .app-header {
+            background: #ffffff;
+            border-bottom: 1px solid var(--col-border);
+            padding: 28px 20px 24px;
+        }
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--col-primary-light);
+            border: 1px solid #c0d8ef;
+            border-radius: 999px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--col-primary);
+            margin-bottom: 14px;
+        }
+        .header-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--col-text);
+            line-height: 1.35;
+            margin-bottom: 6px;
+        }
+        .header-subtitle {
+            font-size: 11.5px;
+            color: var(--col-muted);
+            font-weight: 400;
+            line-height: 1.6;
+        }
+
+        /* ===== STICKY RESULT PANEL ===== */
+        .result-panel {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: #fff8f2;
+            border-bottom: 1px solid #f0d5bf;
+            box-shadow: 0 3px 14px rgba(200,120,60,0.10);
+        }
+        .result-inner {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 16px 16px 20px;
+        }
+        .result-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 20px 0;
+            color: var(--col-muted);
+            font-size: 13px;
+        }
+        .period-tabs {
+            display: flex;
+            background: rgba(255,255,255,0.7);
+            border-radius: 10px;
+            padding: 3px;
+            margin-bottom: 14px;
+            border: 1px solid #edd5c0;
+        }
+        .period-tab {
+            flex: 1;
+            padding: 7px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #c08060;
+        }
+        .period-tab.active {
+            background: #fff;
+            color: var(--col-accent);
+            box-shadow: 0 1px 6px rgba(200,100,40,0.15);
+        }
+        .display-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            margin-bottom: 12px;
+        }
+        .toggle-btn {
+            font-size: 11px;
+            font-weight: 600;
+            font-family: inherit;
+            color: var(--col-primary);
+            background: var(--col-primary-light);
+            border: none;
+            border-radius: 999px;
+            padding: 5px 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toggle-btn:hover { background: #d1e4f5; }
+
+        /* Drug bars */
+        .drug-row { margin-bottom: 12px; }
+        .drug-row:last-child { margin-bottom: 0; }
+        .drug-row-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .drug-name-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .drug-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .drug-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--col-text);
+        }
+        .drug-tag {
+            font-size: 10px;
+            background: var(--col-bg);
+            border: 1px solid var(--col-border);
+            border-radius: 4px;
+            padding: 1px 6px;
+            color: var(--col-muted);
+        }
+        .drug-amount {
+            font-size: 15px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .drug-amount span {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--col-muted);
+            margin-left: 2px;
+        }
+        .bar-track {
+            background: rgba(255,255,255,0.65);
+            border-radius: 999px;
+            height: 8px;
+            overflow: hidden;
+            border: 1px solid #e8c8b0;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ===== STEP CARDS ===== */
+        .step-card {
+            background: var(--col-surface);
+            border: 1px solid var(--col-border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(15,76,129,0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        .step-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 4px; height: 100%;
+            background: linear-gradient(180deg, var(--col-primary), #2980c9);
+            border-radius: 4px 0 0 4px;
+        }
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .step-num {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: var(--col-primary);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .step-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--col-primary);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .step-desc {
+            font-size: 11px;
+            color: var(--col-muted);
+            margin-top: 1px;
+        }
+
+        /* Input label */
+        .input-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--col-muted);
+            margin-bottom: 8px;
+            letter-spacing: 0.02em;
+        }
+        .input-group { margin-bottom: 20px; }
+        .input-group:last-child { margin-bottom: 0; }
+
+        /* Segmented buttons */
+        .seg-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .seg-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .seg-btn {
+            padding: 13px 8px;
+            border-radius: 10px;
+            border: 1.5px solid var(--col-border);
+            background: var(--col-bg);
+            color: var(--col-muted);
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.18s;
+            text-align: center;
+            line-height: 1.3;
+        }
+        .seg-btn:hover:not(.active) {
+            border-color: #a8c5e0;
+            background: var(--col-primary-light);
+        }
+        .seg-btn.active {
+            background: var(--col-primary);
+            border-color: var(--col-primary);
+            color: #fff;
+            font-weight: 700;
+            box-shadow: 0 2px 10px rgba(15,76,129,0.30);
+        }
+        .seg-btn.active-ensp {
+            background: var(--col-ensp);
+            border-color: var(--col-ensp);
+            color: #fff;
+            font-weight: 700;
+            box-shadow: 0 2px 10px rgba(217,119,6,0.25);
+        }
+        .seg-btn-inner-label {
+            display: block;
+            font-size: 10px;
+            font-weight: 400;
+            opacity: 0.75;
+            margin-top: 2px;
+        }
+
+        /* Select */
+        .styled-select {
+            width: 100%;
+            appearance: none;
+            background: var(--col-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238294a8' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center;
+            border: 1.5px solid var(--col-border);
+            border-radius: 10px;
+            padding: 13px 40px 13px 14px;
+            font-size: 13px;
+            font-family: inherit;
+            color: var(--col-text);
+            outline: none;
+            transition: border-color 0.18s;
+            cursor: pointer;
+        }
+        .styled-select:focus { border-color: var(--col-primary); }
+        .styled-select.highlighted {
+            background-color: var(--col-accent-light);
+            border-color: #f0a46a;
+        }
+        .styled-select.highlighted:focus { border-color: var(--col-accent); }
+
+        /* Toggle switch row */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: var(--col-bg);
+            border-radius: 10px;
+            border: 1.5px solid var(--col-border);
+            cursor: pointer;
+            transition: border-color 0.18s;
+            margin-bottom: 8px;
+        }
+        .toggle-row:last-child { margin-bottom: 0; }
+        .toggle-row:hover { border-color: #a8c5e0; }
+        .toggle-row.checked {
+            background: var(--col-primary-light);
+            border-color: #7cb3d9;
+        }
+        .toggle-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--col-text);
+        }
+        .toggle-label .toggle-sub {
+            display: block;
+            font-size: 11px;
+            color: var(--col-muted);
+            font-weight: 400;
+            margin-top: 2px;
+        }
+        .toggle-switch {
+            width: 40px; height: 22px;
+            border-radius: 999px;
+            background: var(--col-border);
+            position: relative;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .toggle-switch.on { background: var(--col-primary); }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 3px; left: 3px;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .toggle-switch.on::after { transform: translateX(18px); }
+        input[type="checkbox"].hidden-check { display: none; }
+
+        /* Footer */
+        .app-footer {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 16px 20px 40px;
+            text-align: center;
+        }
+        .reset-btn {
+            font-size: 11px;
+            color: var(--col-muted);
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-decoration: underline;
+            font-family: inherit;
+            letter-spacing: 0.03em;
+        }
+        .footer-note {
+            font-size: 10px;
+            color: #b0bed0;
+            line-height: 1.7;
+            margin-top: 12px;
+        }
+
+        /* Fade in */
+        .fade-in { animation: fadeIn 0.35s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+        /* Connector line between steps */
+        .step-connector {
+            width: 2px;
+            height: 20px;
+            background: linear-gradient(to bottom, var(--col-border), transparent);
+            margin: 0 auto;
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useMemo } = React;
 
         const App = () => {
-            // --- 初期状態は未選択(null)に設定 ---
             const [params, setParams] = useState({
-                severity: null, 
+                severity: null,
                 nanbyoIncome: null,
                 kogakuIncome: null,
                 enspCycle: '3',
@@ -36,29 +426,23 @@
                 periodTab: 'after'
             });
 
-            // --- 計算ロジック ---
+            // ===== 計算ロジック（変更なし） =====
             const calculateCost = () => {
-                // 未選択時は計算しない
                 if (!params.severity || !params.nanbyoIncome) return null;
 
                 const isHeavy = params.severity === 'heavy';
                 const isFirstYear = params.periodTab === 'first';
 
-                // 1. 難病上限額の設定
                 const nanbyoLimits = { '80': 2500, '160': 5000, '370': 10000, '810': 20000, 'over': 30000 };
                 const nanbyoLongLimits = { '80': 2500, '160': 5000, '370': 5000, '810': 10000, 'over': 20000 };
 
-                // 助成適用後の月額を比較（付加給付2.5万との比較含む）
                 const getMonthlyFinal = (standardLimit) => {
                     if (params.jichitai) return 0;
                     let final = standardLimit;
-                    if (params.fukaKyufu) {
-                        final = Math.min(standardLimit, 25000);
-                    }
+                    if (params.fukaKyufu) final = Math.min(standardLimit, 25000);
                     return final;
                 };
 
-                // 高額療養費の月額計算
                 const getKogakuLimit = (yakka) => {
                     if (params.jichitai) return 0;
                     if (!params.kogakuIncome) return 0;
@@ -73,7 +457,6 @@
                     return params.fukaKyufu ? Math.min(limit, 25000) : limit;
                 };
 
-                // --- 1. エンスプリング ---
                 const enspYakkaPerDose = 1150216;
                 const enspPayCount = 12 / parseInt(params.enspCycle);
                 let enspAnnual = 0;
@@ -81,16 +464,13 @@
 
                 if (isHeavy) {
                     if (params.enspCycle === '3') {
-                        // 3ヶ月処方(年4回)は「高額かつ長期」対象外 -> 一般
                         enspAnnual = getMonthlyFinal(nanbyoLimits[params.nanbyoIncome]) * enspPayCount;
                         enspNote = "難病助成(一般)";
                     } else {
-                        // 1,2ヶ月処方は年6回以上なので「高額かつ長期」
                         enspAnnual = getMonthlyFinal(nanbyoLongLimits[params.nanbyoIncome]) * enspPayCount;
                         enspNote = "高額かつ長期";
                     }
                 } else {
-                    // 軽症（軽症高額特例）
                     const limit = getMonthlyFinal(nanbyoLimits[params.nanbyoIncome]);
                     if (isFirstYear) {
                         const kogaku = getKogakuLimit(enspYakkaPerDose * parseInt(params.enspCycle));
@@ -103,12 +483,10 @@
                     }
                 }
 
-                // --- 2. ユプリズナ ---
                 const uplYakkaPerDose = 10485912;
                 let uplAnnual = 0;
                 let uplNote = "";
                 if (isHeavy) {
-                    // 年2回：一般区分
                     uplAnnual = getMonthlyFinal(nanbyoLimits[params.nanbyoIncome]) * 2;
                     uplNote = "難病助成(一般)";
                 } else {
@@ -116,12 +494,10 @@
                     uplNote = "高額療養費";
                 }
 
-                // --- 3. ユルトミリス ---
                 const ultYakkaPerDose = 7259835;
                 let ultAnnual = 0;
                 let ultNote = "";
                 if (isHeavy) {
-                    // 年6回：高額長期
                     ultAnnual = getMonthlyFinal(nanbyoLongLimits[params.nanbyoIncome]) * 6;
                     ultNote = "高額かつ長期";
                 } else {
@@ -135,145 +511,260 @@
                     }
                 }
 
-                // 1000円未満切り捨て処理
                 const format = (val) => Math.floor(val / 1000) * 1000;
 
                 return [
-                    { name: 'エンスプリング', cost: format(enspAnnual), color: 'bg-amber-500', note: enspNote },
-                    { name: 'ユプリズナ', cost: format(uplAnnual), color: 'bg-blue-500', note: uplNote },
-                    { name: 'ユルトミリス', cost: format(ultAnnual), color: 'bg-emerald-500', note: ultNote }
+                    { name: 'エンスプリング', cost: format(enspAnnual), colorDot: '#d97706', colorBar: 'linear-gradient(90deg, #d97706, #f59e0b)', amountColor: '#b45309', note: enspNote },
+                    { name: 'ユプリズナ',     cost: format(uplAnnual),  colorDot: '#2563eb', colorBar: 'linear-gradient(90deg, #2563eb, #60a5fa)', amountColor: '#1d4ed8', note: uplNote },
+                    { name: 'ユルトミリス',   cost: format(ultAnnual),  colorDot: '#059669', colorBar: 'linear-gradient(90deg, #059669, #34d399)', amountColor: '#047857', note: ultNote }
                 ];
             };
 
             const results = useMemo(calculateCost, [params]);
             const maxCost = results ? Math.max(...results.map(r => r.cost), 100000) : 100000;
 
+            const set = (key, val) => setParams(prev => ({ ...prev, [key]: val }));
+
             return (
-                <div className="min-h-screen pb-12">
-                    <header className="bg-white border-b px-4 py-6 shadow-sm">
-                        <h1 className="text-xl font-bold text-slate-800 text-center flex items-center justify-center gap-2">
-                            NMOSD自己負担額シミュレーター
-                        </h1>
+                <div style={{ minHeight: '100vh', paddingBottom: '40px' }}>
+
+                    {/* ===== HEADER ===== */}
+                    <header className="app-header">
+                        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+                            <div className="header-badge">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                医療費概算ツール
+                            </div>
+                            <div className="header-title">
+                                NMOSD 自己負担額シミュレーター
+                            </div>
+                            <div className="header-subtitle">
+                                指定難病助成制度・高額療養費・各種助成を考慮した年間自己負担の概算
+                            </div>
+                            <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+                                {['エンスプリング', 'ユプリズナ', 'ユルトミリス'].map((d, i) => (
+                                    <div key={d} style={{
+                                        display: 'flex', alignItems: 'center', gap: 5,
+                                        background: ['#fff8ed','#eff5ff','#edfaf4'][i],
+                                        border: `1px solid ${['#f5d8a0','#c0d4f8','#9ee6c8'][i]}`,
+                                        borderRadius: 999,
+                                        padding: '4px 12px',
+                                        fontSize: 11,
+                                        color: ['#92600a','#1d4ed8','#065f46'][i],
+                                        fontWeight: 500,
+                                    }}>
+                                        <div style={{
+                                            width: 6, height: 6, borderRadius: '50%',
+                                            background: ['#f59e0b','#3b82f6','#10b981'][i]
+                                        }}/>
+                                        {d}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </header>
 
-                    <div className="sticky-panel bg-orange-50/95 backdrop-blur-md border-b shadow-md p-4 min-h-[180px] flex flex-col justify-center">
-                        <div className="max-w-2xl mx-auto w-full">
+                    {/* ===== STICKY RESULT PANEL ===== */}
+                    <div className="result-panel">
+                        <div className="result-inner">
                             {!results ? (
-                                <p className="text-center text-slate-400 font-medium py-10">条件を選択すると計算結果が表示されます</p>
+                                <div className="result-empty">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8294a8" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                    条件をすべて選択すると計算結果が表示されます
+                                </div>
                             ) : (
                                 <div className="fade-in">
-                                    <div className="flex bg-white rounded-lg p-1 mb-4 shadow-inner">
-                                        <button onClick={() => setParams({...params, periodTab: 'first'})} className={`flex-1 py-2 text-xs font-bold rounded-md transition ${params.periodTab === 'first' ? 'bg-orange-200 text-orange-900' : 'text-slate-400'}`}>1年目</button>
-                                        <button onClick={() => setParams({...params, periodTab: 'after'})} className={`flex-1 py-2 text-xs font-bold rounded-md transition ${params.periodTab === 'after' ? 'bg-orange-200 text-orange-900' : 'text-slate-400'}`}>2年目以降</button>
+                                    <div className="period-tabs">
+                                        {[['first','1年目（待機期間あり）'],['after','2年目以降']].map(([v, label]) => (
+                                            <button key={v} className={`period-tab ${params.periodTab === v ? 'active' : ''}`}
+                                                onClick={() => set('periodTab', v)}>{label}</button>
+                                        ))}
                                     </div>
-                                    <div className="flex justify-end mb-2">
-                                        <button onClick={() => setParams({...params, displayType: params.displayType === 'year' ? 'month' : 'year'})} className="text-[10px] font-bold bg-white border border-slate-300 px-3 py-1 rounded-full shadow-sm">
-                                            {params.displayType === 'year' ? '月額換算を表示' : '年間合計を表示'}
+                                    <div className="display-toggle">
+                                        <button className="toggle-btn" onClick={() => set('displayType', params.displayType === 'year' ? 'month' : 'year')}>
+                                            {params.displayType === 'year' ? '月額換算で表示' : '年間合計で表示'}
                                         </button>
                                     </div>
-                                    <div className="space-y-4">
-                                        {results.map((r) => {
-                                            const val = params.displayType === 'year' ? r.cost : Math.floor(r.cost / 12);
-                                            return (
-                                                <div key={r.name}>
-                                                    <div className="flex justify-between items-end mb-1">
-                                                        <span className="text-xs font-bold">{r.name} <span className="text-[9px] font-normal bg-white px-1 border rounded ml-1">{r.note}</span></span>
-                                                        <span className="text-sm font-bold text-orange-700">約{val.toLocaleString()}円</span>
+                                    {results.map((r) => {
+                                        const val = params.displayType === 'year' ? r.cost : Math.floor(r.cost / 12);
+                                        const unit = params.displayType === 'year' ? '円/年' : '円/月';
+                                        return (
+                                            <div key={r.name} className="drug-row">
+                                                <div className="drug-row-header">
+                                                    <div className="drug-name-wrap">
+                                                        <div className="drug-dot" style={{ background: r.colorDot }}/>
+                                                        <span className="drug-name">{r.name}</span>
+                                                        <span className="drug-tag">{r.note}</span>
                                                     </div>
-                                                    <div className="w-full bg-white/50 rounded-full h-3 overflow-hidden border border-slate-200">
-                                                        <div className={`h-full ${r.color} transition-all duration-700`} style={{ width: `${(r.cost / maxCost) * 100}%` }}></div>
+                                                    <div className="drug-amount" style={{ color: r.amountColor }}>
+                                                        約{val.toLocaleString()}<span>{unit}</span>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
+                                                <div className="bar-track">
+                                                    <div className="bar-fill" style={{
+                                                        width: `${(r.cost / maxCost) * 100}%`,
+                                                        background: r.colorBar,
+                                                    }}/>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <main className="max-w-2xl mx-auto p-4 mt-6 space-y-8">
-                        <section className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Step 1: 判定・所得条件</h2>
-                            <div className="space-y-6">
+                    {/* ===== MAIN FORM ===== */}
+                    <main style={{ maxWidth: 600, margin: '0 auto', padding: '24px 16px 0' }}>
+
+                        {/* STEP 1: 重症度 */}
+                        <div className="step-card">
+                            <div className="step-header">
+                                <div className="step-num">1</div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">重症度</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {['heavy', 'light'].map(v => (
-                                            <button key={v} onClick={() => setParams({...params, severity: v})} className={`py-3 text-sm rounded-lg border transition ${params.severity === v ? 'bg-slate-800 text-white font-bold' : 'bg-white text-slate-500 border-slate-200'}`}>
-                                                {v === 'heavy' ? '重症認定あり' : '重症認定なし(軽症)'}
-                                            </button>
-                                        ))}
-                                    </div>
+                                    <div className="step-title">重症度の判定</div>
+                                    <div className="step-desc">難病認定の重症度区分を選択してください</div>
                                 </div>
+                            </div>
+                            <div className="seg-grid-2">
+                                {[
+                                    { v: 'heavy', label: '重症認定あり', sub: '難病助成の適用対象' },
+                                    { v: 'light', label: '軽症（認定なし）', sub: '軽症高額特例を検討' }
+                                ].map(({ v, label, sub }) => (
+                                    <button key={v}
+                                        className={`seg-btn ${params.severity === v ? 'active' : ''}`}
+                                        onClick={() => set('severity', v)}>
+                                        {label}
+                                        <span className="seg-btn-inner-label">{sub}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="step-connector"/>
+
+                        {/* STEP 2: 所得条件 */}
+                        <div className="step-card">
+                            <div className="step-header">
+                                <div className="step-num">2</div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">難病所得区分</label>
-                                    <select value={params.nanbyoIncome || ''} onChange={(e) => setParams({...params, nanbyoIncome: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg py-3 px-4 text-sm outline-none">
+                                    <div className="step-title">所得区分</div>
+                                    <div className="step-desc">医療費助成の上限額算定に使用します</div>
+                                </div>
+                            </div>
+                            <div className="input-group">
+                                <label className="input-label">難病医療費助成の所得区分</label>
+                                <select className="styled-select" value={params.nanbyoIncome || ''} onChange={e => set('nanbyoIncome', e.target.value)}>
+                                    <option value="" disabled>選択してください</option>
+                                    <option value="80">低所得Ⅰ（市区町村民税非課税 / 収入 ~80万円）</option>
+                                    <option value="160">低所得Ⅱ（市区町村民税非課税 / 収入 ~160万円）</option>
+                                    <option value="370">一般所得Ⅰ（課税 / 年収目安 ~370万円）</option>
+                                    <option value="810">一般所得Ⅱ（課税 / 年収目安 ~810万円）</option>
+                                    <option value="over">上位所得（年収 810万円以上）</option>
+                                </select>
+                            </div>
+                            {params.severity === 'light' && (
+                                <div className="input-group fade-in">
+                                    <label className="input-label" style={{ color: '#c07020' }}>
+                                        高額療養費制度の所得区分
+                                        <span style={{ fontWeight: 400, marginLeft: 6, fontSize: 10, background: '#fef3ec', border: '1px solid #f0a46a', borderRadius: 4, padding: '1px 6px', color: '#c07020' }}>軽症の方のみ必要</span>
+                                    </label>
+                                    <select className="styled-select highlighted" value={params.kogakuIncome || ''} onChange={e => set('kogakuIncome', e.target.value)}>
                                         <option value="" disabled>選択してください</option>
-                                        <option value="80">低所得Ⅰ (~80万)</option>
-                                        <option value="160">低所得Ⅱ (~160万)</option>
-                                        <option value="370">一般所得Ⅰ (~370万)</option>
-                                        <option value="810">一般所得Ⅱ (~810万)</option>
-                                        <option value="over">上位所得 (810万~)</option>
+                                        <option value="hikazei">住民税非課税世帯</option>
+                                        <option value="370">区分ウ：年収目安 ~370万円</option>
+                                        <option value="770">区分イ：年収目安 ~770万円</option>
+                                        <option value="1160">区分ア：年収目安 ~1,160万円</option>
+                                        <option value="over">現役並みⅢ：年収 1,160万円以上</option>
                                     </select>
                                 </div>
-                                {params.severity === 'light' && (
-                                    <div className="fade-in">
-                                        <label className="block text-xs font-bold text-slate-600 mb-2">高額療養費 所得区分</label>
-                                        <select value={params.kogakuIncome || ''} onChange={(e) => setParams({...params, kogakuIncome: e.target.value})} className="w-full bg-orange-50 border border-orange-100 rounded-lg py-3 px-4 text-sm outline-none">
-                                            <option value="" disabled>選択してください</option>
-                                            <option value="hikazei">住民税非課税</option>
-                                            <option value="370">~年収 370万</option>
-                                            <option value="770">~年収 770万</option>
-                                            <option value="1160">~年収 1160万</option>
-                                            <option value="over">年収 1160万~</option>
-                                        </select>
-                                    </div>
-                                )}
-                            </div>
-                        </section>
-
-                        <section className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Step 2: 製剤・助成条件</h2>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">エンスプリング処方期間</label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[1, 2, 3].map(m => (
-                                            <button key={m} onClick={() => setParams({...params, enspCycle: m.toString()})} className={`py-2 text-xs rounded-md border transition ${params.enspCycle === m.toString() ? 'bg-amber-500 text-white border-amber-600 font-bold' : 'bg-slate-50 text-slate-500'}`}>
-                                                {m}ヶ月分
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-lg cursor-pointer border border-transparent hover:border-slate-200">
-                                        <span className="text-sm">付加給付あり (上限2.5万円/月)</span>
-                                        <input type="checkbox" checked={params.fukaKyufu} onChange={(e) => setParams({...params, fukaKyufu: e.target.checked})} className="w-5 h-5 accent-slate-800"/>
-                                    </label>
-                                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-lg cursor-pointer border border-transparent hover:border-slate-200">
-                                        <span className="text-sm">自治体助成あり (自己負担0)</span>
-                                        <input type="checkbox" checked={params.jichitai} onChange={(e) => setParams({...params, jichitai: e.target.checked})} className="w-5 h-5 accent-slate-800"/>
-                                    </label>
-                                </div>
-                            </div>
-                        </section>
-                        
-                        <div className="text-center">
-                           <button onClick={() => location.reload()} className="text-[10px] text-slate-400 underline uppercase tracking-tighter">データをクリアしてリセット</button>
+                            )}
                         </div>
+
+                        <div className="step-connector"/>
+
+                        {/* STEP 3: 製剤条件 */}
+                        <div className="step-card">
+                            <div className="step-header">
+                                <div className="step-num">3</div>
+                                <div>
+                                    <div className="step-title">製剤の処方条件</div>
+                                    <div className="step-desc">エンスプリングの処方サイクルを選択してください</div>
+                                </div>
+                            </div>
+                            <label className="input-label">エンスプリング処方期間（1回あたり）</label>
+                            <div className="seg-grid-3">
+                                {[
+                                    { v: '1', label: '1ヶ月分', sub: '年12回' },
+                                    { v: '2', label: '2ヶ月分', sub: '年6回' },
+                                    { v: '3', label: '3ヶ月分', sub: '年4回' }
+                                ].map(({ v, label, sub }) => (
+                                    <button key={v}
+                                        className={`seg-btn ${params.enspCycle === v ? 'active-ensp' : ''}`}
+                                        onClick={() => set('enspCycle', v)}>
+                                        {label}
+                                        <span className="seg-btn-inner-label">{sub}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            <div style={{ marginTop: 12, padding: '10px 14px', background: '#fffbf0', borderRadius: 8, border: '1px solid #f0d080', fontSize: 11, color: '#7c5c10', lineHeight: 1.6 }}>
+                                ※ 1・2ヶ月処方は「高額かつ長期」対象（重症の場合）
+                            </div>
+                        </div>
+
+                        <div className="step-connector"/>
+
+                        {/* STEP 4: 助成条件 */}
+                        <div className="step-card">
+                            <div className="step-header">
+                                <div className="step-num">4</div>
+                                <div>
+                                    <div className="step-title">その他の助成</div>
+                                    <div className="step-desc">加入している給付制度にチェックしてください</div>
+                                </div>
+                            </div>
+                            {[
+                                {
+                                    key: 'fukaKyufu',
+                                    label: '付加給付あり',
+                                    sub: '健保組合の独自給付 / 上限 25,000円/月'
+                                },
+                                {
+                                    key: 'jichitai',
+                                    label: '自治体独自助成あり',
+                                    sub: '市区町村の医療費助成 / 自己負担が実質 0円'
+                                }
+                            ].map(({ key, label, sub }) => (
+                                <label key={key}
+                                    className={`toggle-row ${params[key] ? 'checked' : ''}`}
+                                    onClick={() => set(key, !params[key])}>
+                                    <div className="toggle-label">
+                                        {label}
+                                        <span className="toggle-sub">{sub}</span>
+                                    </div>
+                                    <div className={`toggle-switch ${params[key] ? 'on' : ''}`}/>
+                                </label>
+                            ))}
+                        </div>
+
                     </main>
 
-                    <footer className="max-w-2xl mx-auto px-6 pb-12 text-[10px] text-slate-400 leading-relaxed text-center">
-                        ※本ツールは概算値を示すものであり、実際の支払額は処方内容や各自治体、保険組合の規定により異なります。
-                    </footer>
+                    {/* ===== FOOTER ===== */}
+                    <div className="app-footer">
+                        <button className="reset-btn" onClick={() => location.reload()}>
+                            入力内容をリセット
+                        </button>
+                        <div className="footer-note">
+                            本ツールは概算値の提示を目的としており、実際の支払額は処方内容・<br/>
+                            各自治体の規定・加入保険組合の規定により異なります。
+                        </div>
+                    </div>
                 </div>
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-        setTimeout(() => lucide.createIcons(), 500);
     </script>
 </body>
 </html>
