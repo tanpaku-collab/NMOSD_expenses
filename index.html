@@ -79,7 +79,7 @@
         .result-inner {
             max-width: 600px;
             margin: 0 auto;
-            padding: 12px 12px 16px;
+            padding: 16px 16px 20px;
         }
         .result-empty {
             display: flex;
@@ -100,17 +100,16 @@
         }
         .period-tab {
             flex: 1;
-            padding: 7px 4px;
+            padding: 7px;
             border: none;
             background: transparent;
             border-radius: 8px;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 600;
             font-family: inherit;
             cursor: pointer;
             transition: all 0.2s;
             color: #c08060;
-            white-space: nowrap;
         }
         .period-tab.active {
             background: #fff;
@@ -149,10 +148,7 @@
         .drug-name-wrap {
             display: flex;
             align-items: center;
-            gap: 5px;
-            min-width: 0;
-            flex: 1;
-            overflow: hidden;
+            gap: 6px;
         }
         .drug-dot {
             width: 8px; height: 8px;
@@ -160,35 +156,28 @@
             flex-shrink: 0;
         }
         .drug-name {
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 600;
             color: var(--col-text);
-            white-space: nowrap;
-            flex-shrink: 0;
         }
         .drug-tag {
             font-size: 10px;
             background: var(--col-bg);
             border: 1px solid var(--col-border);
             border-radius: 4px;
-            padding: 1px 5px;
+            padding: 1px 6px;
             color: var(--col-muted);
-            white-space: nowrap;
-            flex-shrink: 0;
         }
         .drug-amount {
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 700;
             font-variant-numeric: tabular-nums;
-            white-space: nowrap;
-            flex-shrink: 0;
-            margin-left: 6px;
         }
         .drug-amount span {
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 500;
             color: var(--col-muted);
-            margin-left: 1px;
+            margin-left: 2px;
         }
         .bar-track {
             background: rgba(255,255,255,0.65);
@@ -208,7 +197,7 @@
             background: var(--col-surface);
             border: 1px solid var(--col-border);
             border-radius: 16px;
-            padding: 20px 16px;
+            padding: 24px;
             box-shadow: 0 2px 12px rgba(15,76,129,0.05);
             position: relative;
             overflow: hidden;
@@ -268,19 +257,18 @@
         .seg-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .seg-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
         .seg-btn {
-            padding: 12px 6px;
+            padding: 13px 8px;
             border-radius: 10px;
             border: 1.5px solid var(--col-border);
             background: var(--col-bg);
             color: var(--col-muted);
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 500;
             font-family: inherit;
             cursor: pointer;
             transition: all 0.18s;
             text-align: center;
             line-height: 1.3;
-            min-height: 44px;
         }
         .seg-btn:hover:not(.active) {
             border-color: #a8c5e0;
@@ -420,34 +408,141 @@
         }
 
         /* ===== 制度詳細ボタン ===== */
-        .ref-btn-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 16px;
-        }
         .ref-btn {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 8px;
             width: 100%;
-            min-height: 48px;
-            padding: 10px 8px;
+            padding: 14px;
             background: var(--col-primary-light);
             border: 1.5px solid #c0d8ef;
             border-radius: 12px;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 600;
             font-family: inherit;
             color: var(--col-primary);
             cursor: pointer;
             transition: background 0.18s, border-color 0.18s;
-            text-align: center;
-            line-height: 1.35;
+            margin-bottom: 16px;
         }
         .ref-btn:hover { background: #d4e8f7; border-color: #90bde0; }
 
+        /* ===== MODAL ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15,30,50,0.55);
+            z-index: 200;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 0;
+            animation: overlayIn 0.2s ease;
+        }
+        @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-box {
+            background: #fff;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 640px;
+            max-height: 88vh;
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1);
+            overflow: hidden;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 20px 14px;
+            border-bottom: 1px solid var(--col-border);
+            flex-shrink: 0;
+        }
+        .modal-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--col-text);
+        }
+        .modal-close {
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--col-bg);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            color: var(--col-muted);
+            transition: background 0.15s;
+        }
+        .modal-close:hover { background: #e2eaf2; }
+        .modal-body {
+            overflow-y: auto;
+            padding: 16px 20px 32px;
+        }
+        .modal-section-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--col-primary);
+            margin-bottom: 10px;
+        }
+        .ref-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            min-width: 420px;
+        }
+        .ref-table th {
+            background: #e8f1fa;
+            color: var(--col-primary);
+            font-weight: 700;
+            padding: 8px 10px;
+            text-align: center;
+            border: 1px solid #c8ddf0;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .ref-table td {
+            padding: 8px 10px;
+            border: 1px solid var(--col-border);
+            color: var(--col-text);
+            vertical-align: middle;
+            line-height: 1.5;
+        }
+        .ref-table tbody tr:nth-child(even) td { background: #f8fbfe; }
+        .ref-table .row-head {
+            font-weight: 700;
+            background: #f0f6fc;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .ref-table .num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .ref-table .num.highlight {
+            color: #0f4c81;
+            background: #e8f1fa;
+        }
+        .ref-table .formula {
+            font-size: 11.5px;
+            color: #334466;
+            white-space: nowrap;
+        }
+        .th-note { font-size: 10px; vertical-align: super; }
+        .modal-note {
+            font-size: 11px;
+            color: var(--col-muted);
+            line-height: 1.7;
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: #f8fbfe;
+            border-radius: 8px;
+            border-left: 3px solid #c0d8ef;
+        }
     </style>
 </head>
 <body>
@@ -567,6 +662,8 @@
 
             const set = (key, val) => setParams(prev => ({ ...prev, [key]: val }));
 
+            const [modalOpen, setModalOpen] = React.useState(false);
+
             return (
                 <div style={{ minHeight: '100vh', paddingBottom: '40px' }}>
 
@@ -637,7 +734,7 @@
                     </div>
 
                     {/* ===== MAIN FORM ===== */}
-                    <main style={{ maxWidth: 600, margin: '0 auto', padding: '20px 12px 0' }}>
+                    <main style={{ maxWidth: 600, margin: '0 auto', padding: '24px 16px 0' }}>
 
                         {/* STEP 1: 重症度 */}
                         <div className="step-card">
@@ -773,16 +870,11 @@
 
                     {/* ===== FOOTER ===== */}
                     <div className="app-footer">
-                        <div className="ref-btn-row">
-                            <button className="ref-btn" onClick={() => window.open('nanbyo-table.jpg', '_blank')}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                                難病医療費助成<br/>自己負担上限額
-                            </button>
-                            <button className="ref-btn" onClick={() => window.open('kogaku-table.jpg', '_blank')}>
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                                高額療養費制度<br/>所得区分・上限額
-                            </button>
-                        </div>
+                        {/* 制度詳細ボタン */}
+                        <button className="ref-btn" onClick={() => setModalOpen(true)}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                            制度詳細を確認（自己負担上限額・高額療養費）
+                        </button>
                         <button className="reset-btn" onClick={() => location.reload()}>
                             入力内容をリセット
                         </button>
@@ -791,6 +883,63 @@
                             各自治体の規定・加入保険組合の規定により異なります。
                         </div>
                     </div>
+
+                    {/* ===== MODAL ===== */}
+                    {modalOpen && (
+                        <div className="modal-overlay" onClick={() => setModalOpen(false)}>
+                            <div className="modal-box" onClick={e => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <div className="modal-title">医療費助成における自己負担上限額</div>
+                                    <button className="modal-close" onClick={() => setModalOpen(false)}>
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                                <div className="modal-body">
+                                    <div className="modal-section-label">● 難病医療費助成 自己負担上限額（月額・単位:円）</div>
+                                    <div style={{overflowX:'auto'}}>
+                                        <table className="ref-table">
+                                            <thead>
+                                                <tr>
+                                                    <th rowSpan="2">階層区分</th>
+                                                    <th rowSpan="2">階層区分の基準<br/><span style={{fontWeight:400,fontSize:10}}>(夫婦2人世帯の年収目安)</span></th>
+                                                    <th>一般</th>
+                                                    <th>高額かつ長期<span className="th-note">※</span></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr><td className="row-head">生活保護</td><td>—</td><td className="num">0</td><td className="num">0</td></tr>
+                                                <tr><td className="row-head">低所得Ⅰ</td><td>市町村民税非課税 / 本人年収 〜80万円</td><td className="num">2,500</td><td className="num">2,500</td></tr>
+                                                <tr><td className="row-head">低所得Ⅱ</td><td>市町村民税非課税 / 本人年収 80万円超〜</td><td className="num">5,000</td><td className="num">5,000</td></tr>
+                                                <tr><td className="row-head">一般所得Ⅰ</td><td>市町村民税課税以上7.1万円未満<br/><span style={{fontSize:11,color:'#8294a8'}}>(約160万〜約370万円)</span></td><td className="num">10,000</td><td className="num highlight">5,000</td></tr>
+                                                <tr><td className="row-head">一般所得Ⅱ</td><td>市町村民税7.1万円以上25.1万円未満<br/><span style={{fontSize:11,color:'#8294a8'}}>(約370万〜約810万円)</span></td><td className="num">20,000</td><td className="num highlight">10,000</td></tr>
+                                                <tr><td className="row-head">上位所得</td><td>市町村民税25.1万円以上<br/><span style={{fontSize:11,color:'#8294a8'}}>(約810万円〜)</span></td><td className="num">30,000</td><td className="num highlight">20,000</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="modal-note">※「高額かつ長期」とは、月ごとの医療費総額が5万円を超える月が年間6回以上ある者（医療保険の2割負担の場合、自己負担が1万円を超える月が年間6回以上）。</div>
+
+                                    <div className="modal-section-label" style={{marginTop:20}}>● 高額療養費制度 本来の負担上限額（月額）</div>
+                                    <div style={{overflowX:'auto'}}>
+                                        <table className="ref-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>所得区分</th>
+                                                    <th>本来の負担上限額</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr><td>年収約1,160万円〜</td><td className="formula">252,600円＋（医療費 − 842,000円）× 1%</td></tr>
+                                                <tr><td>年収約770万〜約1,160万円</td><td className="formula">167,400円＋（医療費 − 558,000円）× 1%</td></tr>
+                                                <tr><td>年収約370万〜約770万円</td><td className="formula">80,100円＋（医療費 − 267,000円）× 1%</td></tr>
+                                                <tr><td>〜年収約370万円</td><td className="num">57,600円</td></tr>
+                                                <tr><td>住民税非課税者</td><td className="num">35,400円</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
