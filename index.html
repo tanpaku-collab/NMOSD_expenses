@@ -15,13 +15,16 @@
         .sticky-panel { position: sticky; top: 0; z-index: 50; }
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* 選択済みSTEPの背景色 */
+        .step-active { background-color: #f8fafc; /* bg-slate-50 */ }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo } = React;
+        const { useState, useMemo, useEffect } = React;
 
         const App = () => {
             // --- 初期状態は未選択(null)に設定 ---
@@ -36,29 +39,30 @@
                 periodTab: 'after'
             });
 
-            // --- 計算ロジック ---
+            // 現在表示中のSTEP (1〜4)
+            const [currentStep, setCurrentStep] = useState(1);
+
+            // コンポーネントマウント時とSTEP切り替え時にアイコンを再生成
+            useEffect(() => {
+                lucide.createIcons();
+            }, [currentStep, params.severity]); // params.severityも追加（動的表示に対応）
+
+            // --- 計算ロジック (変更なし) ---
             const calculateCost = () => {
-                // 未選択時は計算しない
                 if (!params.severity || !params.nanbyoIncome) return null;
 
                 const isHeavy = params.severity === 'heavy';
                 const isFirstYear = params.periodTab === 'first';
-
-                // 1. 難病上限額の設定
                 const nanbyoLimits = { '80': 2500, '160': 5000, '370': 10000, '810': 20000, 'over': 30000 };
                 const nanbyoLongLimits = { '80': 2500, '160': 5000, '370': 5000, '810': 10000, 'over': 20000 };
 
-                // 助成適用後の月額を比較（付加給付2.5万との比較含む）
                 const getMonthlyFinal = (standardLimit) => {
                     if (params.jichitai) return 0;
                     let final = standardLimit;
-                    if (params.fukaKyufu) {
-                        final = Math.min(standardLimit, 25000);
-                    }
+                    if (params.fukaKyufu) final = Math.min(standardLimit, 25000);
                     return final;
                 };
 
-                // 高額療養費の月額計算
                 const getKogakuLimit = (yakka) => {
                     if (params.jichitai) return 0;
                     if (!params.kogakuIncome) return 0;
@@ -76,68 +80,37 @@
                 // --- 1. エンスプリング ---
                 const enspYakkaPerDose = 1150216;
                 const enspPayCount = 12 / parseInt(params.enspCycle);
-                let enspAnnual = 0;
-                let enspNote = "";
-
+                let enspAnnual = 0, enspNote = "";
                 if (isHeavy) {
-                    if (params.enspCycle === '3') {
-                        // 3ヶ月処方(年4回)は「高額かつ長期」対象外 -> 一般
-                        enspAnnual = getMonthlyFinal(nanbyoLimits[params.nanbyoIncome]) * enspPayCount;
-                        enspNote = "難病助成(一般)";
-                    } else {
-                        // 1,2ヶ月処方は年6回以上なので「高額かつ長期」
-                        enspAnnual = getMonthlyFinal(nanbyoLongLimits[params.nanbyoIncome]) * enspPayCount;
-                        enspNote = "高額かつ長期";
-                    }
+                    const limit = params.enspCycle === '3' ? nanbyoLimits[params.nanbyoIncome] : nanbyoLongLimits[params.nanbyoIncome];
+                    enspAnnual = getMonthlyFinal(limit) * enspPayCount;
+                    enspNote = params.enspCycle === '3' ? "難病助成(一般)" : "高額かつ長期";
                 } else {
-                    // 軽症（軽症高額特例）
                     const limit = getMonthlyFinal(nanbyoLimits[params.nanbyoIncome]);
                     if (isFirstYear) {
                         const kogaku = getKogakuLimit(enspYakkaPerDose * parseInt(params.enspCycle));
-                        const first3Count = Math.min(3, enspPayCount);
-                        enspAnnual = (kogaku * first3Count) + (limit * (enspPayCount - first3Count));
+                        enspAnnual = (kogaku * Math.min(3, enspPayCount)) + (limit * Math.max(0, enspPayCount - 3));
                         enspNote = "待機期間含";
-                    } else {
-                        enspAnnual = limit * enspPayCount;
-                        enspNote = "軽症高額特例";
-                    }
+                    } else { enspAnnual = limit * enspPayCount; enspNote = "軽症高額特例"; }
                 }
 
                 // --- 2. ユプリズナ ---
                 const uplYakkaPerDose = 10485912;
-                let uplAnnual = 0;
-                let uplNote = "";
-                if (isHeavy) {
-                    // 年2回：一般区分
-                    uplAnnual = getMonthlyFinal(nanbyoLimits[params.nanbyoIncome]) * 2;
-                    uplNote = "難病助成(一般)";
-                } else {
-                    uplAnnual = getKogakuLimit(uplYakkaPerDose) * 2;
-                    uplNote = "高額療養費";
-                }
+                let uplAnnual = 0, uplNote = "";
+                if (isHeavy) { uplAnnual = getMonthlyFinal(nanbyoLimits[params.nanbyoIncome]) * 2; uplNote = "難病助成(一般)"; }
+                else { uplAnnual = getKogakuLimit(uplYakkaPerDose) * 2; uplNote = "高額療養費"; }
 
                 // --- 3. ユルトミリス ---
                 const ultYakkaPerDose = 7259835;
-                let ultAnnual = 0;
-                let ultNote = "";
-                if (isHeavy) {
-                    // 年6回：高額長期
-                    ultAnnual = getMonthlyFinal(nanbyoLongLimits[params.nanbyoIncome]) * 6;
-                    ultNote = "高額かつ長期";
-                } else {
+                let ultAnnual = 0, ultNote = "";
+                if (isHeavy) { ultAnnual = getMonthlyFinal(nanbyoLongLimits[params.nanbyoIncome]) * 6; ultNote = "高額かつ長期"; }
+                else {
                     const limit = getMonthlyFinal(nanbyoLimits[params.nanbyoIncome]);
-                    if (isFirstYear) {
-                        ultAnnual = (getKogakuLimit(ultYakkaPerDose) * 3) + (limit * 3);
-                        ultNote = "待機期間含";
-                    } else {
-                        ultAnnual = limit * 6;
-                        ultNote = "軽症高額特例";
-                    }
+                    if (isFirstYear) { ultAnnual = (getKogakuLimit(ultYakkaPerDose) * 3) + (limit * 3); ultNote = "待機期間含"; }
+                    else { ultAnnual = limit * 6; ultNote = "軽症高額特例"; }
                 }
 
-                // 1000円未満切り捨て処理
                 const format = (val) => Math.floor(val / 1000) * 1000;
-
                 return [
                     { name: 'エンスプリング', cost: format(enspAnnual), color: 'bg-amber-500', note: enspNote },
                     { name: 'ユプリズナ', cost: format(uplAnnual), color: 'bg-blue-500', note: uplNote },
@@ -148,26 +121,64 @@
             const results = useMemo(calculateCost, [params]);
             const maxCost = results ? Math.max(...results.map(r => r.cost), 100000) : 100000;
 
+            // STEPナビゲーション用のデータ
+            const steps = [
+                { id: 1, title: '判定' },
+                { id: 2, title: '所得条件' },
+                { id: 3, title: '製剤条件' },
+                { id: 4, title: '助成条件' }
+            ];
+
             return (
-                <div className="min-h-screen pb-12">
-                    <header className="bg-white border-b px-4 py-6 shadow-sm">
-                        <h1 className="text-xl font-bold text-slate-800 text-center flex items-center justify-center gap-2">
-                            NMOSD自己負担額シミュレーター
-                        </h1>
+                <div className="min-h-screen pb-12 bg-slate-50">
+                    {/* 工夫したタイトル部分 */}
+                    <header className="bg-white border-b border-slate-100 shadow-sm relative overflow-hidden">
+                        {/* 装飾用の背景要素 */}
+                        <div className="absolute inset-0 opacity-5">
+                            <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                                <defs>
+                                    <pattern id="dotPattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+                                        <circle cx="2" cy="2" r="2" fill="#0f172a" />
+                                    </pattern>
+                                </defs>
+                                <rect width="100%" height="100%" fill="url(#dotPattern)" />
+                            </svg>
+                        </div>
+                        
+                        <div className="max-w-7xl mx-auto px-6 py-8 relative z-10">
+                            <div className="flex items-center justify-center gap-3 mb-2">
+                                <div className="p-2.5 bg-slate-900 rounded-xl text-white shadow-md">
+                                    <i data-lucide="calculator" className="w-7 h-7"></i>
+                                </div>
+                                <h1 className="text-3xl font-extrabold text-slate-950 tracking-tight">
+                                    NMOSD<span className="text-slate-500 font-normal">自己負担額シミュレーター</span>
+                                </h1>
+                            </div>
+                            <p className="text-center text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
+                                複雑な指定難病助成制度や高額療養費制度に基づき、汎用される分子標的薬3剤の年間自己負担額を中立的に試算します。
+                            </p>
+                        </div>
                     </header>
 
-                    <div className="sticky-panel bg-orange-50/95 backdrop-blur-md border-b shadow-md p-4 min-h-[180px] flex flex-col justify-center">
-                        <div className="max-w-2xl mx-auto w-full">
+                    {/* 固定パネル (イメージ通り) */}
+                    <div className="sticky-panel bg-orange-50/95 backdrop-blur-md border-b border-orange-100 shadow-md p-5 min-h-[180px] flex flex-col justify-center mb-8">
+                        <div className="max-w-3xl mx-auto w-full">
                             {!results ? (
-                                <p className="text-center text-slate-400 font-medium py-10">条件を選択すると計算結果が表示されます</p>
+                                <div className="text-center py-10 flex flex-col items-center justify-center gap-4">
+                                    <div className="p-3 bg-white rounded-full text-orange-300 shadow-inner border">
+                                        <i data-lucide="bar-chart-3" className="w-10 h-10"></i>
+                                    </div>
+                                    <p className="text-slate-500 font-medium">下記のSTEPに従って条件を選択すると、ここに計算結果が表示されます。</p>
+                                </div>
                             ) : (
                                 <div className="fade-in">
-                                    <div className="flex bg-white rounded-lg p-1 mb-4 shadow-inner">
-                                        <button onClick={() => setParams({...params, periodTab: 'first'})} className={`flex-1 py-2 text-xs font-bold rounded-md transition ${params.periodTab === 'first' ? 'bg-orange-200 text-orange-900' : 'text-slate-400'}`}>1年目</button>
-                                        <button onClick={() => setParams({...params, periodTab: 'after'})} className={`flex-1 py-2 text-xs font-bold rounded-md transition ${params.periodTab === 'after' ? 'bg-orange-200 text-orange-900' : 'text-slate-400'}`}>2年目以降</button>
+                                    <div className="flex bg-white rounded-xl p-1.5 mb-5 shadow-inner border border-slate-100">
+                                        <button onClick={() => setParams({...params, periodTab: 'first'})} className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${params.periodTab === 'first' ? 'bg-orange-200 text-orange-950 shadow' : 'text-slate-400 hover:text-slate-600'}`}>1年目負担</button>
+                                        <button onClick={() => setParams({...params, periodTab: 'after'})} className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${params.periodTab === 'after' ? 'bg-orange-200 text-orange-950 shadow' : 'text-slate-400 hover:text-slate-600'}`}>2年目以降負担 (通年)</button>
                                     </div>
-                                    <div className="flex justify-end mb-2">
-                                        <button onClick={() => setParams({...params, displayType: params.displayType === 'year' ? 'month' : 'year'})} className="text-[10px] font-bold bg-white border border-slate-300 px-3 py-1 rounded-full shadow-sm">
+                                    <div className="flex justify-end mb-3">
+                                        <button onClick={() => setParams({...params, displayType: params.displayType === 'year' ? 'month' : 'year'})} className="flex items-center gap-1.5 text-xs font-bold bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-full shadow-sm hover:border-slate-300 transition hover:shadow">
+                                            <i data-lucide="arrow-left-right" className="w-3.5 h-3.5"></i>
                                             {params.displayType === 'year' ? '月額換算を表示' : '年間合計を表示'}
                                         </button>
                                     </div>
@@ -175,13 +186,16 @@
                                         {results.map((r) => {
                                             const val = params.displayType === 'year' ? r.cost : Math.floor(r.cost / 12);
                                             return (
-                                                <div key={r.name}>
-                                                    <div className="flex justify-between items-end mb-1">
-                                                        <span className="text-xs font-bold">{r.name} <span className="text-[9px] font-normal bg-white px-1 border rounded ml-1">{r.note}</span></span>
-                                                        <span className="text-sm font-bold text-orange-700">約{val.toLocaleString()}円</span>
+                                                <div key={r.name} className="bg-white/40 p-1 rounded-lg">
+                                                    <div className="flex justify-between items-center mb-1.5 px-1">
+                                                        <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                                                            {r.name} 
+                                                            <span className="text-[10px] font-medium bg-white px-2 py-0.5 border border-slate-100 shadow-inner rounded-full text-slate-500">{r.note}</span>
+                                                        </span>
+                                                        <span className="text-base font-extrabold text-orange-700">約{val.toLocaleString()}円<span className="text-xs font-normal text-slate-500"> / {params.displayType === 'year' ? '年' : '月'}</span></span>
                                                     </div>
-                                                    <div className="w-full bg-white/50 rounded-full h-3 overflow-hidden border border-slate-200">
-                                                        <div className={`h-full ${r.color} transition-all duration-700`} style={{ width: `${(r.cost / maxCost) * 100}%` }}></div>
+                                                    <div className="w-full bg-white rounded-full h-3 overflow-hidden border border-slate-200 shadow-inner">
+                                                        <div className={`h-full ${r.color} transition-all duration-1000 ease-out rounded-full`} style={{ width: `${(r.cost / maxCost) * 100}%` }}></div>
                                                     </div>
                                                 </div>
                                             );
@@ -192,80 +206,239 @@
                         </div>
                     </div>
 
-                    <main className="max-w-2xl mx-auto p-4 mt-6 space-y-8">
-                        <section className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Step 1: 判定・所得条件</h2>
-                            <div className="space-y-6">
+                    <main className="max-w-3xl mx-auto p-4 space-y-8">
+                        {/* STEP ナビゲーション (上部タブ風) */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-2 flex gap-1 sticky top-[210px] z-40 mb-10">
+                            {steps.map((step, index) => (
+                                <button 
+                                    key={step.id} 
+                                    onClick={() => setCurrentStep(step.id)}
+                                    className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-xl transition-all ${currentStep === step.id ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}
+                                >
+                                    <span className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${currentStep === step.id ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                        {step.id}
+                                    </span>
+                                    <span className="text-sm font-bold tracking-tight">{step.title}</span>
+                                    {index < steps.length - 1 && currentStep !== step.id && currentStep !== step.id + 1 && (
+                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-px bg-slate-100"></div>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* STEP コンテンツエリア (カード風、イメージに近い色味) */}
+                        <div className="bg-white rounded-3xl shadow-lg p-10 border border-slate-100 fade-in min-h-[400px]">
+                            <div className="flex items-center gap-3 mb-8 pb-4 border-b border-slate-100 relative">
+                                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-600 border border-slate-200 shadow-inner">
+                                    <span className="text-xl font-black">{currentStep}</span>
+                                </div>
+                                <div className="absolute left-6 top-16 w-0.5 h-10 bg-slate-100 rounded-full"></div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">重症度</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {['heavy', 'light'].map(v => (
-                                            <button key={v} onClick={() => setParams({...params, severity: v})} className={`py-3 text-sm rounded-lg border transition ${params.severity === v ? 'bg-slate-800 text-white font-bold' : 'bg-white text-slate-500 border-slate-200'}`}>
-                                                {v === 'heavy' ? '重症認定あり' : '重症認定なし(軽症)'}
-                                            </button>
-                                        ))}
+                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Step {currentStep} / 4</p>
+                                    <h2 className="text-2xl font-extrabold text-slate-950 tracking-tight">{steps[currentStep-1].title}の設定</h2>
+                                </div>
+                                {/* コンテンツクリアボタン */}
+                                <button onClick={() => location.reload()} className="ml-auto flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 border border-slate-100 px-3 py-1.5 rounded-lg hover:border-slate-200 transition">
+                                    <i data-lucide="rotate-ccw" className="w-3.5 h-3.5"></i>
+                                    条件をリセット
+                                </button>
+                            </div>
+
+                            <div className="fade-in space-y-8">
+                                {/* --- STEP 1: 判定 --- */}
+                                {currentStep === 1 && (
+                                    <div className="space-y-8">
+                                        <div className="p-6 bg-slate-50 rounded-xl border border-slate-100">
+                                            <h3 className="text-sm font-bold text-slate-800 mb-1 flex items-center gap-2">
+                                                <i data-lucide="check-circle-2" className="w-4 h-4 text-slate-400"></i>
+                                                重症度
+                                            </h3>
+                                            <p className="text-xs text-slate-500 mb-4 ml-6">「指定難病受給者証」における重症度分類を選択してください。</p>
+                                            <div className="grid grid-cols-2 gap-3 ml-6">
+                                                {[
+                                                    { key: 'heavy', label: '重症認定あり', desc: '助成が優先適用されます' },
+                                                    { key: 'light', label: '重症認定なし(軽症)', desc: 'ユプリズナ等は高額療養費適用' }
+                                                ].map(item => (
+                                                    <button 
+                                                        key={item.key} 
+                                                        onClick={() => setParams({...params, severity: item.key})} 
+                                                        className={`p-5 text-left rounded-xl border-2 transition-all flex flex-col gap-1 ${params.severity === item.key ? 'bg-slate-900 text-white border-slate-950 shadow-md font-bold' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                                                    >
+                                                        <span className="text-sm font-bold">{item.label}</span>
+                                                        <span className={`text-[11px] ${params.severity === item.key ? 'text-slate-300' : 'text-slate-400'}`}>{item.desc}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        {params.severity && (
+                                            <div className="flex justify-end pt-4">
+                                                <button onClick={() => setCurrentStep(2)} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white text-sm font-bold rounded-xl shadow hover:bg-slate-800 transition">
+                                                    次のSTEP (所得条件) へ
+                                                    <i data-lucide="arrow-right" className="w-4 h-4"></i>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">難病所得区分</label>
-                                    <select value={params.nanbyoIncome || ''} onChange={(e) => setParams({...params, nanbyoIncome: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg py-3 px-4 text-sm outline-none">
-                                        <option value="" disabled>選択してください</option>
-                                        <option value="80">低所得Ⅰ (~80万)</option>
-                                        <option value="160">低所得Ⅱ (~160万)</option>
-                                        <option value="370">一般所得Ⅰ (~370万)</option>
-                                        <option value="810">一般所得Ⅱ (~810万)</option>
-                                        <option value="over">上位所得 (810万~)</option>
-                                    </select>
-                                </div>
-                                {params.severity === 'light' && (
-                                    <div className="fade-in">
-                                        <label className="block text-xs font-bold text-slate-600 mb-2">高額療養費 所得区分</label>
-                                        <select value={params.kogakuIncome || ''} onChange={(e) => setParams({...params, kogakuIncome: e.target.value})} className="w-full bg-orange-50 border border-orange-100 rounded-lg py-3 px-4 text-sm outline-none">
-                                            <option value="" disabled>選択してください</option>
-                                            <option value="hikazei">住民税非課税</option>
-                                            <option value="370">~年収 370万</option>
-                                            <option value="770">~年収 770万</option>
-                                            <option value="1160">~年収 1160万</option>
-                                            <option value="over">年収 1160万~</option>
-                                        </select>
+                                )}
+
+                                {/* --- STEP 2: 所得条件 --- */}
+                                {currentStep === 2 && (
+                                    <div className="space-y-8">
+                                        <div className="p-6 bg-slate-50 rounded-xl border border-slate-100">
+                                            <h3 className="text-sm font-bold text-slate-800 mb-1 flex items-center gap-2">
+                                                <i data-lucide="banknote" className="w-4 h-4 text-slate-400"></i>
+                                                難病助成における 所得区分
+                                            </h3>
+                                            <p className="text-xs text-slate-500 mb-4 ml-6">指定難病受給者証に記載されている所得区分を選択してください。</p>
+                                            <div className="ml-6 relative">
+                                                <select value={params.nanbyoIncome || ''} onChange={(e) => setParams({...params, nanbyoIncome: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl py-4 px-5 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-100 appearance-none shadow-sm cursor-pointer text-slate-800">
+                                                    <option value="" disabled>選択してください (必須)</option>
+                                                    <option value="80">低所得Ⅰ (~80万/非課税)</option>
+                                                    <option value="160">低所得Ⅱ (~160万/非課税)</option>
+                                                    <option value="370">一般所得Ⅰ (~370万)</option>
+                                                    <option value="810">一般所得Ⅱ (~810万)</option>
+                                                    <option value="over">上位所得 (810万~)</option>
+                                                </select>
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                                                    <i data-lucide="chevron-down" className="w-5 h-5"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {params.severity === 'light' && (
+                                            <div className="p-6 bg-orange-50/50 rounded-xl border border-orange-100 fade-in">
+                                                <h3 className="text-sm font-bold text-orange-900 mb-1 flex items-center gap-2">
+                                                    <i data-lucide="info" className="w-4 h-4 text-orange-400"></i>
+                                                    高額療養費制度における 所得区分 <span className="text-[10px] font-normal text-orange-600">(軽症時・ユプリズナ等の計算に参照)</span>
+                                                </h3>
+                                                <p className="text-xs text-orange-700/80 mb-4 ml-6">軽症かつユプリズナ等の高額療養費対象薬の計算に使用します。年収目安から選択してください。</p>
+                                                <div className="ml-6 relative">
+                                                    <select value={params.kogakuIncome || ''} onChange={(e) => setParams({...params, kogakuIncome: e.target.value})} className="w-full bg-white border border-orange-200 rounded-xl py-4 px-5 text-sm outline-none text-slate-800 shadow-sm cursor-pointer appearance-none">
+                                                        <option value="" disabled>選択してください</option>
+                                                        <option value="hikazei">住民税非課税世帯</option>
+                                                        <option value="370">~年収 370万</option>
+                                                        <option value="770">~年収 770万</option>
+                                                        <option value="1160">~年収 1160万</option>
+                                                        <option value="over">年収 1160万~</option>
+                                                    </select>
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-orange-400 pointer-events-none">
+                                                        <i data-lucide="chevron-down" className="w-5 h-5"></i>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        <div className="flex justify-between pt-4 gap-3 border-t border-slate-100 mt-10">
+                                            <button onClick={() => setCurrentStep(1)} className="flex items-center gap-2 px-5 py-3 border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition">
+                                                <i data-lucide="arrow-left" className="w-4 h-4"></i>
+                                                戻る
+                                            </button>
+                                            {params.nanbyoIncome && (
+                                                <button onClick={() => setCurrentStep(3)} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white text-sm font-bold rounded-xl shadow hover:bg-slate-800 transition">
+                                                    次のSTEP (製剤条件) へ
+                                                    <i data-lucide="arrow-right" className="w-4 h-4"></i>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* --- STEP 3: 製剤条件 --- */}
+                                {currentStep === 3 && (
+                                    <div className="space-y-8">
+                                        <div className="p-6 bg-slate-50 rounded-xl border border-slate-100">
+                                            <h3 className="text-sm font-bold text-slate-800 mb-1 flex items-center gap-2">
+                                                <i data-lucide="package" className="w-4 h-4 text-slate-400"></i>
+                                                エンスプリング 処方期間 (サイクル)
+                                            </h3>
+                                            <p className="text-xs text-slate-500 mb-4 ml-6">皮下注製剤（エンスプリング）の一度の受診で受け取る処方期間を選択してください。<br/>サイクルによって「高額かつ長期」や「軽症高額特例」の該当判定が自動的に変わります。</p>
+                                            <div className="grid grid-cols-3 gap-3 ml-6">
+                                                {[
+                                                    { m: 1, label: '1ヶ月処方', pay: '年12回払' },
+                                                    { m: 2, label: '2ヶ月処方', pay: '年6回払' },
+                                                    { m: 3, label: '3ヶ月処方', pay: '年4回払' }
+                                                ].map(item => (
+                                                    <button 
+                                                        key={item.m} 
+                                                        onClick={() => setParams({...params, enspCycle: item.m.toString()})} 
+                                                        className={`p-5 text-center rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${params.enspCycle === item.m.toString() ? 'bg-amber-500 text-white border-amber-600 shadow-md font-bold' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                                                    >
+                                                        <span className="text-sm font-bold">{item.label}</span>
+                                                        <span className={`text-[11px] ${params.enspCycle === item.m.toString() ? 'text-amber-50' : 'text-slate-400'}`}>{item.pay}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex justify-between pt-4 gap-3 border-t border-slate-100 mt-10">
+                                            <button onClick={() => setCurrentStep(2)} className="flex items-center gap-2 px-5 py-3 border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition">
+                                                <i data-lucide="arrow-left" className="w-4 h-4"></i>
+                                                戻る
+                                            </button>
+                                            <button onClick={() => setCurrentStep(4)} className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white text-sm font-bold rounded-xl shadow hover:bg-slate-800 transition">
+                                                最後のSTEP (助成条件) へ
+                                                <i data-lucide="arrow-right" className="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* --- STEP 4: 助成条件 --- */}
+                                {currentStep === 4 && (
+                                    <div className="space-y-8 fade-in">
+                                        <div className="p-6 bg-slate-50 rounded-xl border border-slate-100">
+                                            <h3 className="text-sm font-bold text-slate-800 mb-1 flex items-center gap-2">
+                                                <i data-lucide="plus-circle" className="w-4 h-4 text-slate-400"></i>
+                                                その他の独自の助成制度
+                                            </h3>
+                                            <p className="text-xs text-slate-500 mb-5 ml-6">加入する健康保険や居住する自治体独自の助成がある場合はチェックしてください。<br/>データは中立的に示されます。</p>
+                                            
+                                            <div className="ml-6 space-y-3 max-w-lg mx-auto">
+                                                {[
+                                                    { key: 'fukaKyufu', label: '付加給付あり', desc: '健保組合等の上乗せ助成 (上限2.5万円/月)' },
+                                                    { key: 'jichitai', label: '自治体助成あり', desc: '障がい者手帳・ひとり親助成等 (自己負担0)' }
+                                                ].map(item => (
+                                                    <label key={item.key} className={`flex items-start gap-4 p-5 rounded-xl cursor-pointer border-2 transition ${params[item.key] ? 'bg-slate-900 text-white border-slate-950 shadow-md' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'}`}>
+                                                        <div className="pt-0.5">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={params[item.key]} 
+                                                                onChange={(e) => setParams({...params, [item.key]: e.target.checked})} 
+                                                                className={`w-5 h-5 rounded ${params[item.key] ? 'accent-white' : 'accent-slate-800'}`}/>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-sm font-bold block mb-0.5">{item.label}</span>
+                                                            <span className={`text-[11px] ${params[item.key] ? 'text-slate-300' : 'text-slate-400'}`}>{item.desc}</span>
+                                                        </div>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex justify-between pt-4 gap-3 border-t border-slate-100 mt-10">
+                                            <button onClick={() => setCurrentStep(3)} className="flex items-center gap-2 px-5 py-3 border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition">
+                                                <i data-lucide="arrow-left" className="w-4 h-4"></i>
+                                                戻る
+                                            </button>
+                                            <div className="flex flex-col items-center gap-1">
+                                                <i data-lucide="gift" className="w-5 h-5 text-amber-500 animate-bounce"></i>
+                                                <span className="text-[10px] text-slate-500 font-bold">これで完了！上部で比較</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                        </section>
-
-                        <section className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Step 2: 製剤・助成条件</h2>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">エンスプリング処方期間</label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[1, 2, 3].map(m => (
-                                            <button key={m} onClick={() => setParams({...params, enspCycle: m.toString()})} className={`py-2 text-xs rounded-md border transition ${params.enspCycle === m.toString() ? 'bg-amber-500 text-white border-amber-600 font-bold' : 'bg-slate-50 text-slate-500'}`}>
-                                                {m}ヶ月分
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-lg cursor-pointer border border-transparent hover:border-slate-200">
-                                        <span className="text-sm">付加給付あり (上限2.5万円/月)</span>
-                                        <input type="checkbox" checked={params.fukaKyufu} onChange={(e) => setParams({...params, fukaKyufu: e.target.checked})} className="w-5 h-5 accent-slate-800"/>
-                                    </label>
-                                    <label className="flex items-center justify-between p-4 bg-slate-50 rounded-lg cursor-pointer border border-transparent hover:border-slate-200">
-                                        <span className="text-sm">自治体助成あり (自己負担0)</span>
-                                        <input type="checkbox" checked={params.jichitai} onChange={(e) => setParams({...params, jichitai: e.target.checked})} className="w-5 h-5 accent-slate-800"/>
-                                    </label>
-                                </div>
-                            </div>
-                        </section>
-                        
-                        <div className="text-center">
-                           <button onClick={() => location.reload()} className="text-[10px] text-slate-400 underline uppercase tracking-tighter">データをクリアしてリセット</button>
                         </div>
                     </main>
 
-                    <footer className="max-w-2xl mx-auto px-6 pb-12 text-[10px] text-slate-400 leading-relaxed text-center">
-                        ※本ツールは概算値を示すものであり、実際の支払額は処方内容や各自治体、保険組合の規定により異なります。
+                    {/* 免責事項 */}
+                    <footer className="max-w-4xl mx-auto px-6 pt-16 pb-12 text-[10px] text-slate-400 leading-relaxed text-center border-t border-slate-100 mt-20 bg-white rounded-t-2xl shadow-inner relative overflow-hidden">
+                        <div className="relative z-10 space-y-2">
+                            <p>※本シミュレーターは公的制度に基づく概算値を示し、特定の薬剤を推奨するものではありません。忖度なく時系列順に提示しています。</p>
+                            <p>※実際の支払額は処方内容、自治体の独自助成、加入する健康保険組合の規定、病院の算定方式等により異なります。</p>
+                            <p>※本シミュレーターを利用したことによる、直接的または間接的な損害について、当方は一切の責任を負いません。正確な情報は必ず主治医や医療機関の窓口にご確認ください。</p>
+                            <p className="pt-4 text-slate-500 font-bold">© Professional Medical Tool Project 2026 / v1.5 [STEP ver.]</p>
+                        </div>
                     </footer>
                 </div>
             );
@@ -273,7 +446,6 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-        setTimeout(() => lucide.createIcons(), 500);
     </script>
 </body>
 </html>
