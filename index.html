@@ -448,6 +448,86 @@
         }
         .ref-btn:hover { background: #d4e8f7; border-color: #90bde0; }
 
+        /* ===== MODAL ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15,30,50,0.55);
+            z-index: 200;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            animation: overlayIn 0.2s ease;
+        }
+        @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-box {
+            background: #fff;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 640px;
+            max-height: 88vh;
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.28s cubic-bezier(0.32,0.72,0,1);
+            overflow: hidden;
+        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 20px 14px;
+            border-bottom: 1px solid var(--col-border);
+            flex-shrink: 0;
+        }
+        .modal-title { font-size: 14px; font-weight: 700; color: var(--col-text); }
+        .modal-close {
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--col-bg);
+            border: none; border-radius: 50%;
+            cursor: pointer; color: var(--col-muted);
+            transition: background 0.15s;
+        }
+        .modal-close:hover { background: #e2eaf2; }
+        .modal-body { overflow-y: auto; padding: 16px 20px 32px; }
+        .modal-section-label {
+            font-size: 12px; font-weight: 700;
+            color: var(--col-primary); margin-bottom: 10px;
+        }
+        .ref-table {
+            width: 100%; border-collapse: collapse;
+            font-size: 12px; min-width: 360px;
+        }
+        .ref-table th {
+            background: #e8f1fa; color: var(--col-primary);
+            font-weight: 700; padding: 8px 10px;
+            text-align: center; border: 1px solid #c8ddf0;
+            font-size: 11px; line-height: 1.4;
+        }
+        .ref-table td {
+            padding: 8px 10px; border: 1px solid var(--col-border);
+            color: var(--col-text); vertical-align: middle; line-height: 1.5;
+        }
+        .ref-table tbody tr:nth-child(even) td { background: #f8fbfe; }
+        .ref-table .row-head {
+            font-weight: 700; background: #f0f6fc;
+            text-align: center; white-space: nowrap;
+        }
+        .ref-table .num {
+            text-align: right; font-variant-numeric: tabular-nums;
+            font-weight: 600; white-space: nowrap;
+        }
+        .ref-table .num.highlight { color: #0f4c81; background: #e8f1fa; }
+        .ref-table .formula { font-size: 11px; color: #334466; white-space: nowrap; }
+        .th-note { font-size: 10px; vertical-align: super; }
+        .modal-note {
+            font-size: 11px; color: var(--col-muted);
+            line-height: 1.7; margin-top: 10px;
+            padding: 10px 12px; background: #f8fbfe;
+            border-radius: 8px; border-left: 3px solid #c0d8ef;
+        }
+
     </style>
 </head>
 <body>
@@ -571,6 +651,8 @@
             const maxCost = results ? Math.max(...results.map(r => r.cost), 100000) : 100000;
 
             const set = (key, val) => setParams(prev => ({ ...prev, [key]: val }));
+
+            const [modalOpen, setModalOpen] = React.useState(null); // 'nanbyo' | 'kogaku' | null
 
             return (
                 <div style={{ minHeight: '100vh', paddingBottom: '40px' }}>
@@ -790,11 +872,11 @@
                     {/* ===== FOOTER ===== */}
                     <div className="app-footer">
                         <div className="ref-btn-row">
-                            <button className="ref-btn" onClick={() => window.open('nanbyo-table.jpg', '_blank')}>
+                            <button className="ref-btn" onClick={() => setModalOpen('nanbyo')}>
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                                 難病医療費助成<br/>自己負担上限額
                             </button>
-                            <button className="ref-btn" onClick={() => window.open('kogaku-table.jpg', '_blank')}>
+                            <button className="ref-btn" onClick={() => setModalOpen('kogaku')}>
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                                 高額療養費制度<br/>所得区分・上限額
                             </button>
@@ -807,6 +889,72 @@
                             各自治体の規定・加入保険組合の規定により異なります。
                         </div>
                     </div>
+
+                    {/* ===== MODAL ===== */}
+                    {modalOpen && (
+                        <div className="modal-overlay" onClick={() => setModalOpen(null)}>
+                            <div className="modal-box" onClick={e => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <div className="modal-title">
+                                        {modalOpen === 'nanbyo' ? '難病医療費助成 自己負担上限額' : '高額療養費制度 所得区分・上限額'}
+                                    </div>
+                                    <button className="modal-close" onClick={() => setModalOpen(null)}>
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                                <div className="modal-body">
+                                    {modalOpen === 'nanbyo' ? (
+                                        <>
+                                            <div className="modal-section-label">● 難病医療費助成 自己負担上限額（月額・単位:円）</div>
+                                            <div style={{overflowX:'auto'}}>
+                                                <table className="ref-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>階層区分</th>
+                                                            <th>年収目安</th>
+                                                            <th>一般</th>
+                                                            <th>高額かつ長期<span className="th-note">※</span></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr><td className="row-head">生活保護</td><td>—</td><td className="num">0</td><td className="num">0</td></tr>
+                                                        <tr><td className="row-head">低所得Ⅰ</td><td>〜80万円</td><td className="num">2,500</td><td className="num">2,500</td></tr>
+                                                        <tr><td className="row-head">低所得Ⅱ</td><td>80万円超〜</td><td className="num">5,000</td><td className="num">5,000</td></tr>
+                                                        <tr><td className="row-head">一般所得Ⅰ</td><td>〜約370万円</td><td className="num">10,000</td><td className="num highlight">5,000</td></tr>
+                                                        <tr><td className="row-head">一般所得Ⅱ</td><td>〜約810万円</td><td className="num">20,000</td><td className="num highlight">10,000</td></tr>
+                                                        <tr><td className="row-head">上位所得</td><td>810万円〜</td><td className="num">30,000</td><td className="num highlight">20,000</td></tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div className="modal-note">※「高額かつ長期」とは、月ごとの医療費総額が5万円を超える月が年間6回以上ある者（医療保険の2割負担の場合、自己負担が1万円を超える月が年間6回以上）。</div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="modal-section-label">● 高額療養費制度 自己負担上限額（月額）</div>
+                                            <div style={{overflowX:'auto'}}>
+                                                <table className="ref-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>所得区分</th>
+                                                            <th>自己負担上限額</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr><td>年収約1,160万円〜</td><td className="formula">252,600円＋（医療費 − 842,000円）× 1%</td></tr>
+                                                        <tr><td>年収約770万〜約1,160万円</td><td className="formula">167,400円＋（医療費 − 558,000円）× 1%</td></tr>
+                                                        <tr><td>年収約370万〜約770万円</td><td className="formula">80,100円＋（医療費 − 267,000円）× 1%</td></tr>
+                                                        <tr><td>〜年収約370万円</td><td className="num">57,600円</td></tr>
+                                                        <tr><td>住民税非課税者</td><td className="num">35,400円</td></tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div className="modal-note">付加給付がある場合は上限額がさらに低くなります（多くの組合健保では25,000円/月）。</div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
