@@ -736,10 +736,11 @@
                             <div style={{ marginTop: 12, padding: '10px 14px', background: '#fffbf0', borderRadius: 8, border: '1px solid #f0d080', fontSize: 11, color: '#7c5c10', lineHeight: 1.6 }}>
                                 ※ 1・2ヶ月処方は「高額かつ長期」対象（重症の場合）
                             </div>
-                            {/* ユプリズナ 軽症高額特例トグル */}
+                            {/* ユプリズナ 軽症高額特例セクション */}
+                            <label className="input-label" style={{ marginTop: 20, marginBottom: 8 }}>ユプリズナ使用下の特殊な条件</label>
                             <label
                                 className={`toggle-row ${params.uplExtraMonth ? 'checked' : ''}`}
-                                style={{ marginTop: 14 }}
+                                style={{ marginTop: 0, marginBottom: 0 }}
                                 onClick={() => set('uplExtraMonth', !params.uplExtraMonth)}>
                                 <div className="toggle-label">
                                     ユプリズナ投与月以外に、医療費総額33,330円超の月あり
